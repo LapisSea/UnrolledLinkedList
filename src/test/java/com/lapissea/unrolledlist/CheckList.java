@@ -263,4 +263,8 @@ public class CheckList<T> implements List<T>{
 		assertEquals(va, vb);
 		return va;
 	}
+	@Override
+	public String toString(){
+		return a.toString();
+	}
 }

@@ -2,19 +2,26 @@ package com.lapissea.unrolledlist;
 
 import java.util.AbstractList;
 import java.util.Iterator;
+import java.util.ListIterator;
 import java.util.Objects;
+import java.util.Spliterator;
 import java.util.StringJoiner;
+import java.util.function.Consumer;
 
 public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	
-	private final class UnrolledItertor implements Iterator<T>{
+	private sealed class UnrolledIterator implements Iterator<T>{
 		
-		private Node<T> node, nodeLastRet;
-		private int pos, lastRet;
+		protected Node node, nodeLastRet;
+		protected int pos, lastRet;
 		
-		public UnrolledItertor(){
-			node = head;
-			while(node != null && node.size == 0) node = node.next;
+		public UnrolledIterator(int start){
+			var res = nodeWalk(start);
+			node = res.node;
+			pos = res.localPos;
+			if(pos == 0 && node != null && node.size == 0){
+				node = null;
+			}
 		}
 		
 		@Override
@@ -23,33 +30,198 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 		@Override
 		public T next(){
-			var val = (nodeLastRet = node).get(lastRet = pos);
+			checkNode(node);
+			T val = (nodeLastRet = node).get(lastRet = pos);
 			pos++;
+			fixPos();
+			return val;
+		}
+		
+		private void checkNode(Node node){
+			var n = head;
+			if(head == null) return;
+			while(n != null){
+				if(n == node) return;
+				n = n.next;
+			}
+			throw new IllegalStateException("node not in list");
+		}
+		
+		protected void fixPos(){
 			while(node != null && pos>=node.size){
 				node = node.next;
 				pos = 0;
 			}
-			return val;
 		}
+		
 		@Override
 		public void remove(){
-			if(lastRet<0) throw new IllegalStateException();
+			if(nodeLastRet == null) throw new IllegalStateException();
+			checkNode(nodeLastRet);
+//			LogUtil.println("_", UnrolledLinkedList.this.toString());
+			var res = nodeLastRet.remove(lastRet);
+			if(res != null){
+				node = res.node;
+				pos = lastRet + res.localPos;
+				fixPos();
+			}else{
+				if(lastRet<pos) pos--;
+			}
 			size--;
-			nodeLastRet.remove(lastRet);
-			if(lastRet<pos) pos--;
-			lastRet = -1;
+//			LogUtil.println("#", UnrolledLinkedList.this.toString());
+			
+			nodeLastRet = null;
 		}
 	}
 	
-	private record NodeResult<T>(Node<T> node, int localPos){ }
+	private final class UnrolledListIterator extends UnrolledIterator implements ListIterator<T>{
+		UnrolledListIterator(int index){
+			super(index);
+		}
+		
+		public boolean hasPrevious(){
+			return pos>0 || (node != null && node.prev != null);
+		}
+		
+		public T previous(){
+			int i = pos - 1;
+			if(i == -1){
+				var prev = node.prev;
+				return (nodeLastRet = node = prev).get(lastRet = pos = prev.size - 1);
+			}else{
+				return (nodeLastRet = node).get(lastRet = pos = i);
+			}
+		}
+		
+		public int nextIndex(){
+			return pos;
+		}
+		
+		public int previousIndex(){
+			return pos - 1;
+		}
+		
+		public void set(T e){
+			if(nodeLastRet == null) throw new IllegalStateException();
+			nodeLastRet.set(lastRet, e);
+		}
+		
+		public void add(T e){
+			int i = pos;
+			node.add(i, e);
+			lastRet = -1;
+			pos = i + 1;
+			fixPos();
+		}
+	}
 	
-	private static final class Node<T>{
+	private static final class UnrolledSpliterator<E> implements Spliterator<E>{
+		
+		private final UnrolledLinkedList<E> list;
+		
+		private int index; // current index, modified on advance/split
+		private int fence; // -1 until used; then one past last index
+		
+		private UnrolledLinkedList<E>.Node node;
+		private int                        localIndex;
+		
+		
+		private UnrolledSpliterator(UnrolledLinkedList<E> list){
+			this.list = list;
+			this.index = 0;
+			this.fence = -1;
+		}
+		
+		/**
+		 * Create new spliterator covering the given  range
+		 */
+		private UnrolledSpliterator(UnrolledSpliterator<E> parent, int origin, int fence){
+			this.list = parent.list;
+			this.index = origin;
+			this.fence = fence;
+			loadNode();
+		}
+		
+		private int getFence(){ // initialize fence to size on first use
+			int hi;
+			if((hi = fence)<0){
+				hi = fence = list.size();
+				loadNode();
+			}
+			return hi;
+		}
+		
+		@Override
+		public Spliterator<E> trySplit(){
+			int hi = getFence(), lo = index, mid = (lo + hi) >>> 1;
+			return (lo>=mid)? null : // divide range in half unless too small
+			       new UnrolledSpliterator<>(this, lo, index = mid);
+		}
+		
+		@Override
+		public boolean tryAdvance(Consumer<? super E> action){
+			if(action == null) throw new NullPointerException();
+			int hi = getFence(), i = index;
+			if(i<hi){
+				index = i + 1;
+				action.accept(node.get(localIndex++));
+				fixPos();
+				return true;
+			}
+			return false;
+		}
+		
+		@Override
+		public void forEachRemaining(Consumer<? super E> action){
+			Objects.requireNonNull(action);
+			int hi = getFence();
+			int i  = index;
+			index = hi;
+			for(; i<hi; i++){
+				action.accept(node.get(localIndex++));
+				fixPos();
+			}
+		}
+		
+		@Override
+		public long estimateSize(){
+			return getFence() - index;
+		}
+		
+		@Override
+		public int characteristics(){
+			return Spliterator.ORDERED|Spliterator.SIZED|Spliterator.SUBSIZED;
+		}
+		
+		@Override
+		public long getExactSizeIfKnown(){
+			return estimateSize();
+		}
+		
+		private void fixPos(){
+			while(node != null && localIndex>=node.size){
+				node = node.next;
+				localIndex = 0;
+			}
+		}
+		private void loadNode(){
+			var res = list.nodeWalk(index);
+			node = res.node;
+			localIndex = res.localPos;
+		}
+	}
+	
+	private record NodeResult<T>(UnrolledLinkedList<T>.Node node, int localPos){
+		private static final NodeResult<?> EMPTY = new NodeResult<>(null, 0);
+	}
+	
+	private final class Node{
 		private final Object[] arr;
 		private       int      start;
 		private       int      size;
 		
-		private Node<T> next;
-		private Node<T> prev;
+		private Node next;
+		private Node prev;
 		
 		public Node(Object[] arr){
 			this.arr = arr;
@@ -59,12 +231,16 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		private T get(int localPos){
 			return (T)arr[start + localPos];
 		}
+		@SuppressWarnings("unchecked")
+		private T set(int localPos, T value){
+			var truePos = start + localPos;
+			var old     = (T)arr[truePos];
+			arr[truePos] = value;
+			return old;
+		}
 		
 		private void add(int localPos, T element){
-//			if(localPos == size){
-//				add(element);
-//				return;
-//			}
+			Objects.checkIndex(localPos, size + 1);
 			
 			if(start>0 && localPos == 0){
 				arr[start--] = element;
@@ -122,7 +298,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		private boolean full(){
 			return size>=arr.length - arr.length/4;
 		}
-		private Node<T> optimalNext(){
+		private Node optimalNext(){
 			if(next == null || next.full()){
 				insertNext();
 			}
@@ -130,14 +306,14 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 		
 		private void insertNext(){
-			var delta1 = new Node<T>(new Object[arr.length]);
+			var delta1 = new Node(new Object[rollSize]);
 			delta1.prev = this;
 			
 			if(next != null){
 				var delta2 = next;
 				delta2.prev = delta1;
 				delta1.next = delta2;
-			}
+			}else tail = delta1;
 			next = delta1;
 		}
 		
@@ -154,7 +330,8 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			arr[truePos] = element;
 		}
 		
-		private T remove(int localPos){
+		private NodeResult<T> remove(int localPos){
+			Objects.checkIndex(localPos, size);
 			int i       = start + localPos;
 			int newSize = size - 1;
 			@SuppressWarnings("unchecked")
@@ -165,41 +342,47 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			arr[size = newSize] = null;
 			
 			if(newSize<arr.length/2){
-				defrag();
+				return defrag();
 			}
 			
-			return old;
+			return null;
 		}
 		
-		private void defrag(){
+		private NodeResult<T> defrag(){
 			int siz = size;
 			if(prev != null){
 				int off;
 				if(siz + (off = prev.size + prev.start)<arr.length){
 					System.arraycopy(arr, start, prev.arr, off, siz);
+					var olSiz = prev.size;
 					prev.size += siz;
 					removeSelf();
+					return new NodeResult<>(prev, olSiz);
 				}
-			}else if(next != null){
+			}
+			if(next != null){
 				int off;
 				if((off = siz + start) + next.size<arr.length){
 					System.arraycopy(next.arr, next.start, arr, off, next.size);
 					size += next.size;
 					next.removeSelf();
+					return new NodeResult<>(this, 0);
 				}
 			}
+			return null;
 		}
 		
 		private void removeSelf(){
 			prev.next = next;
 			if(next != null) next.prev = prev;
+			else tail = prev;
 		}
 	}
 	
 	private       int size;
 	private final int rollSize;
 	
-	private Node<T> head, tail;
+	private Node head, tail;
 	
 	public UnrolledLinkedList(){
 		this(16);
@@ -226,7 +409,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	
 	@Override
 	public void add(int index, T element){
-		Objects.checkIndex(index, size);
+		Objects.checkIndex(index, size + 1);
 		var res = nodeWalk(index);
 		res.node.add(res.localPos, element);
 		size++;
@@ -235,9 +418,21 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	@Override
 	public T remove(int index){
 		Objects.checkIndex(index, size);
+		var res      = nodeWalk(index);
+		var node     = res.node;
+		var localPos = res.localPos;
+		
+		var old = node.get(localPos);
+		node.remove(localPos);
 		size--;
+		return old;
+	}
+	
+	@Override
+	public T set(int index, T element){
+		Objects.checkIndex(index, size);
 		var res = nodeWalk(index);
-		return res.node.remove(res.localPos);
+		return res.node.set(res.localPos, element);
 	}
 	
 	@Override
@@ -247,7 +442,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	}
 	
 	private void makeFirst(){
-		tail = head = new Node<>(new Object[rollSize]);
+		tail = head = new Node(new Object[rollSize]);
 	}
 	
 	@Override
@@ -256,9 +451,13 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	}
 	
 	private NodeResult<T> nodeWalk(int offset){
-//		if(offset>size/2){
-//			return getBackwardsNode(offset);
-//		}
+		if(head == null){
+			//noinspection unchecked
+			return (NodeResult<T>)NodeResult.EMPTY;
+		}
+		if(offset>size>>1){
+			return getBackwardsNode(offset);
+		}
 		return getForwardsNode(offset);
 	}
 	private NodeResult<T> getForwardsNode(int offset){
@@ -276,19 +475,21 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	private NodeResult<T> getBackwardsNode(int offset){
 		var node      = tail;
 		var remaining = size - offset;
-		while(remaining>=node.size){
+		while(remaining>node.size){
 			var prev = node.prev;
 			if(prev == null) break;
 			remaining -= node.size;
 			node = prev;
 		}
-		return new NodeResult<>(node, remaining);
+		return new NodeResult<>(node, node.size - remaining);
 	}
 	
 	@Override
-	public Iterator<T> iterator(){
-		return new UnrolledItertor();
-	}
+	public Iterator<T> iterator(){ return new UnrolledIterator(0); }
+	@Override
+	public ListIterator<T> listIterator(int index){ return new UnrolledListIterator(index); }
+	@Override
+	public Spliterator<T> spliterator(){ return new UnrolledSpliterator<>(this); }
 	
 	@Override
 	public String toString(){
@@ -305,6 +506,6 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			node = node.next;
 		}
 		
-		return size + " " + rest.toString();
+		return rest.toString();
 	}
 }
