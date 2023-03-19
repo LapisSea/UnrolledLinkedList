@@ -74,8 +74,9 @@ public class CheckList<T> implements List<T>{
 	}
 	@Override
 	public <T1> T1[] toArray(T1[] a1){
+		var a2 = a1.clone();
 		var va = a.toArray(a1);
-		var vb = b.toArray(a1);
+		var vb = b.toArray(a2);
 		assertEquals(va, vb);
 		return va;
 	}
