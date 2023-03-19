@@ -58,7 +58,6 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		public void remove(){
 			if(nodeLastRet == null) throw new IllegalStateException();
 			checkNode(nodeLastRet);
-//			LogUtil.println("_", UnrolledLinkedList.this.toString());
 			var res = nodeLastRet.remove(lastRet);
 			if(res != null){
 				node = res.newNode;
@@ -68,7 +67,6 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			}
 			fixPos();
 			size--;
-//			LogUtil.println("#", UnrolledLinkedList.this.toString());
 			
 			nodeLastRet = null;
 		}
