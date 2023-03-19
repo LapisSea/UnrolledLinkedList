@@ -1,5 +1,6 @@
 package com.lapissea.unrolledlist;
 
+import java.lang.reflect.Array;
 import java.util.AbstractList;
 import java.util.Iterator;
 import java.util.ListIterator;
@@ -7,6 +8,7 @@ import java.util.Objects;
 import java.util.Spliterator;
 import java.util.StringJoiner;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	
@@ -453,6 +455,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 		return getForwardsNode(offset);
 	}
+	
 	private NodeResult<T> getForwardsNode(int offset){
 		var node      = head;
 		var remaining = offset;
@@ -501,4 +504,47 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		
 		return rest.toString();
 	}
+	
+	@Override
+	public Object[] toArray(){
+		var r    = new Object[size()];
+		int size = copyIntoArray(r);
+		assert size == r.length;
+		return r;
+	}
+	
+	@Override
+	public <T1> T1[] toArray(T1[] a){
+		@SuppressWarnings("unchecked")
+		var r = a.length>=size? a : (T1[])Array.newInstance(a.getClass().getComponentType(), size);
+		int size = copyIntoArray(r);
+		for(int i = size; i<r.length; i++) r[i] = null;
+		return r;
+	}
+	
+	private int copyIntoArray(Object[] r){
+		var node = head;
+		var pos  = 0;
+		while(node != null){
+			System.arraycopy(node.arr, node.start, r, pos, node.size);
+			pos += node.size;
+			node = node.next;
+		}
+		return pos;
+	}
+	
+	@Override
+	public void replaceAll(UnaryOperator<T> operator){
+		Objects.requireNonNull(operator);
+		var node = head;
+		while(node != null){
+			var arr = node.arr;
+			for(int i = node.start, j = i + node.size; i<j; i++){
+				//noinspection unchecked
+				arr[i] = operator.apply((T)arr[i]);
+			}
+			node = node.next;
+		}
+	}
+	
 }
