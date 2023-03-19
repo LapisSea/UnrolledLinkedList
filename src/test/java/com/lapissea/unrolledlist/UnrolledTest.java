@@ -40,7 +40,7 @@ public class UnrolledTest{
 	}
 	
 	public static void main(String[] args){
-		new UnrolledTest().iteratorFuzz();
+		new UnrolledTest().listIteratorFuzz();
 	}
 	
 	@Test(dependsOnMethods = {"simpleRemove", "simpleContains"})
@@ -133,6 +133,75 @@ public class UnrolledTest{
 						iter.next();
 						any = true;
 					}
+					j++;
+				}catch(Throwable e){
+					Assert.fail("Fail on iteration: " + i + " inner: " + j, e);
+				}
+			}
+		}
+	}
+	
+	@Test(dependsOnMethods = "simpleAdd")
+	void listIteratorFuzz(){
+		enum Action{
+			NEXT(false), PREV(false), SET(true), ADD(true), REMOVE(true);
+			
+			private final boolean needsAny;
+			Action(boolean needsAny){ this.needsAny = needsAny; }
+		}
+		var actions = Action.values();
+		
+		var rand = new Random(69);
+		
+		var iters = 50_000;
+		for(int i = 0; i<iters; i++){
+			if(i%(iters/100) == 0) LogUtil.println(i/(double)iters);
+			
+			var list = gen(rand);
+//			LogUtil.println(i, list.toString());
+			
+			var     iter = list.listIterator(list.isEmpty()? 0 : rand.nextInt(list.size()));
+			boolean any  = false;
+			int     j    = 0;
+			while(j<10000){
+				try{
+					if(!iter.hasNext()) break;
+					
+					Action action;
+					do{
+						action = actions[rand.nextInt(actions.length)];
+					}while(!any && action.needsAny);
+					
+//					if(i == 4585 && j == 46){
+//						int aai = 0;
+//					}
+//					if(i == 4585)	LogUtil.println(j, list.toString());
+					
+					switch(action){
+						case null -> throw new NullPointerException();
+						case NEXT -> {
+							if(iter.hasNext()){
+								iter.next();
+								any = true;
+							}
+						}
+						case PREV -> {
+							if(iter.hasPrevious()){
+								iter.previous();
+								any = true;
+							}
+						}
+						case SET -> iter.set(rand.nextInt(10, 99));
+						case ADD -> {
+							iter.add(rand.nextInt(10, 99));
+							any = false;
+						}
+						case REMOVE -> {
+							iter.remove();
+							any = false;
+						}
+					}
+					
 					j++;
 				}catch(Throwable e){
 					Assert.fail("Fail on iteration: " + i + " inner: " + j, e);

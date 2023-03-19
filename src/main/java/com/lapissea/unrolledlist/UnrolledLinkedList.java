@@ -49,8 +49,8 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		
 		protected void fixPos(){
 			while(node != null && pos>=node.size){
+				pos -= node.size;
 				node = node.next;
-				pos = 0;
 			}
 		}
 		
@@ -61,12 +61,12 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 //			LogUtil.println("_", UnrolledLinkedList.this.toString());
 			var res = nodeLastRet.remove(lastRet);
 			if(res != null){
-				node = res.node;
-				pos = lastRet + res.localPos;
-				fixPos();
+				node = res.newNode;
+				pos = lastRet + res.delta;
 			}else{
-				if(lastRet<pos) pos--;
+				if(node == nodeLastRet && lastRet<pos) pos--;
 			}
+			fixPos();
 			size--;
 //			LogUtil.println("#", UnrolledLinkedList.this.toString());
 			
@@ -109,7 +109,8 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		public void add(T e){
 			int i = pos;
 			node.add(i, e);
-			lastRet = -1;
+			size++;
+			nodeLastRet = null;
 			pos = i + 1;
 			fixPos();
 		}
@@ -211,6 +212,8 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 	}
 	
+	private record StructureChange<T>(UnrolledLinkedList<T>.Node newNode, int delta){ }
+	
 	private record NodeResult<T>(UnrolledLinkedList<T>.Node node, int localPos){
 		private static final NodeResult<?> EMPTY = new NodeResult<>(null, 0);
 	}
@@ -256,9 +259,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			var s = size;
 			if(start + s>truePos){
 				//System.arraycopy is for some reason slower?
-				for(int i = s - 1; i>=truePos; i--){
-					arr[i + 1] = arr[i];
-				}
+				for(int i = s - 1; i>=truePos; i--) arr[i + 1] = arr[i];
 //				System.arraycopy(
 //					arr, truePos,
 //					arr, truePos + 1,
@@ -317,38 +318,30 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			next = delta1;
 		}
 		
-		private void add(T element){
-			var truePos = start + size;
-			
-			if(truePos == arr.length){
-				var n = optimalNext();
-				n.add(0, element);
-				return;
-			}
-			
-			size++;
-			arr[truePos] = element;
-		}
-		
-		private NodeResult<T> remove(int localPos){
+		private StructureChange<T> remove(int localPos){
 			Objects.checkIndex(localPos, size);
 			int i       = start + localPos;
 			int newSize = size - 1;
-			@SuppressWarnings("unchecked")
-			var old = (T)arr[i];
 			if(start + newSize>i){
 				System.arraycopy(arr, i + 1, arr, i, start + newSize - i);
 			}
 			arr[size = newSize] = null;
 			
 			if(newSize<arr.length/2){
+				if(newSize == 0){
+					removeSelf();
+					if(next == null){
+						return prev == null? null : new StructureChange<>(prev, prev.size);
+					}
+					return new StructureChange<>(next, 0);
+				}
 				return defrag();
 			}
 			
 			return null;
 		}
 		
-		private NodeResult<T> defrag(){
+		private StructureChange<T> defrag(){
 			int siz = size;
 			if(prev != null){
 				int off;
@@ -357,7 +350,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 					var olSiz = prev.size;
 					prev.size += siz;
 					removeSelf();
-					return new NodeResult<>(prev, olSiz);
+					return new StructureChange<>(prev, olSiz);
 				}
 			}
 			if(next != null){
@@ -366,16 +359,18 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 					System.arraycopy(next.arr, next.start, arr, off, next.size);
 					size += next.size;
 					next.removeSelf();
-					return new NodeResult<>(this, 0);
+					return new StructureChange<>(this, 0);
 				}
 			}
 			return null;
 		}
 		
 		private void removeSelf(){
-			prev.next = next;
+			if(prev != null) prev.next = next;
+			else head = next;
 			if(next != null) next.prev = prev;
 			else tail = prev;
+			size = -1;
 		}
 	}
 	
