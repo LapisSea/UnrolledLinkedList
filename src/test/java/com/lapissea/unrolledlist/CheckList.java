@@ -1,5 +1,7 @@
 package com.lapissea.unrolledlist;
 
+import com.lapissea.util.LogUtil;
+
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -13,6 +15,16 @@ public class CheckList<T> implements List<T>{
 	public CheckList(List<T> a, List<T> b){
 		this.a = a;
 		this.b = b;
+	}
+	
+	private void listEquality(){
+		try{
+			assertEquals(a, b);
+		}catch(Throwable e){
+			LogUtil.println(a);
+			LogUtil.println(b);
+			throw e;
+		}
 	}
 	
 	@Override
@@ -60,7 +72,7 @@ public class CheckList<T> implements List<T>{
 			public void remove(){
 				iterA.remove();
 				iterB.remove();
-				assertEquals(a, b);
+				listEquality();
 			}
 		};
 	}
@@ -85,7 +97,7 @@ public class CheckList<T> implements List<T>{
 		var va = a.add(t);
 		var vb = b.add(t);
 		assertEquals(va, vb);
-		assertEquals(a, b);
+		listEquality();
 		return va;
 	}
 	@Override
@@ -93,7 +105,7 @@ public class CheckList<T> implements List<T>{
 		var va = a.remove(o);
 		var vb = b.remove(o);
 		assertEquals(va, vb);
-		assertEquals(a, b);
+		listEquality();
 		return va;
 	}
 	@Override
@@ -108,7 +120,7 @@ public class CheckList<T> implements List<T>{
 		var va = a.addAll(c);
 		var vb = b.addAll(c);
 		assertEquals(va, vb);
-		assertEquals(a, b);
+		listEquality();
 		return va;
 	}
 	@Override
@@ -116,7 +128,7 @@ public class CheckList<T> implements List<T>{
 		var va = a.addAll(index, c);
 		var vb = b.addAll(index, c);
 		assertEquals(va, vb);
-		assertEquals(a, b);
+		listEquality();
 		return va;
 	}
 	@Override
@@ -124,7 +136,7 @@ public class CheckList<T> implements List<T>{
 		var va = a.removeAll(c);
 		var vb = b.removeAll(c);
 		assertEquals(va, vb);
-		assertEquals(a, b);
+		listEquality();
 		return va;
 	}
 	@Override
@@ -132,14 +144,14 @@ public class CheckList<T> implements List<T>{
 		var va = a.retainAll(c);
 		var vb = b.retainAll(c);
 		assertEquals(va, vb);
-		assertEquals(a, b);
+		listEquality();
 		return va;
 	}
 	@Override
 	public void clear(){
 		a.clear();
 		b.clear();
-		assertEquals(a, b);
+		listEquality();
 	}
 	@Override
 	public T get(int index){
@@ -153,21 +165,21 @@ public class CheckList<T> implements List<T>{
 		var va = a.set(index, element);
 		var vb = b.set(index, element);
 		assertEquals(va, vb);
-		assertEquals(a, b);
+		listEquality();
 		return va;
 	}
 	@Override
 	public void add(int index, T element){
 		a.add(index, element);
 		b.add(index, element);
-		assertEquals(a, b);
+		listEquality();
 	}
 	@Override
 	public T remove(int index){
 		var va = a.remove(index);
 		var vb = b.remove(index);
 		assertEquals(va, vb);
-		assertEquals(a, b);
+		listEquality();
 		return va;
 	}
 	@Override
@@ -240,19 +252,19 @@ public class CheckList<T> implements List<T>{
 			public void remove(){
 				iterA.remove();
 				iterB.remove();
-				assertEquals(a, b);
+				listEquality();
 			}
 			@Override
 			public void set(T t){
 				iterA.set(t);
 				iterB.set(t);
-				assertEquals(a, b);
+				listEquality();
 			}
 			@Override
 			public void add(T t){
 				iterA.add(t);
 				iterB.add(t);
-				assertEquals(a, b);
+				listEquality();
 			}
 		};
 	}
@@ -266,6 +278,7 @@ public class CheckList<T> implements List<T>{
 	}
 	@Override
 	public String toString(){
-		return a.toString();
+		if(a.equals(b)) return a.toString();
+		return a + " != " + b;
 	}
 }
