@@ -243,31 +243,107 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 		
 		private void add(int localPos, T element){
-			Objects.checkIndex(localPos, size + 1);
+			var lSize = size;
+			Objects.checkIndex(localPos, lSize + 1);
+			var lStart = start;
 			
-			if(start>0 && localPos == 0){
-				arr[start--] = element;
-				size++;
+			//Insert and consume start space
+			if(lStart>0 && localPos<size/2){
+				var lStartM1 = lStart - 1;
+				if(localPos>0){
+					System.arraycopy(arr, lStart, arr, lStartM1, localPos);
+				}
+				arr[lStartM1 + localPos] = element;
+				start = lStartM1;
+				size = lSize + 1;
 				return;
 			}
 			
-			var truePos = start + localPos;
-			if(expand(localPos)){
-				next.add(localPos - size, element);
-				return;
+			if(lSize == arr.length){
+				//Totally full, try pushing in to neighbour (position threshold is biased towards prev to passively pack data)
+				if(localPos<=lSize/2){
+					if(addByPrevTransfer(localPos, element)) return;
+				}
+				if(localPos>=lSize*3/4){
+					if(addByNextTransfer(localPos, element)) return;
+				}
+				//Totally full and expand node space by allocating and splitting data
+				if(expand(localPos)){
+					next.add(localPos - size, element);
+					return;
+				}
+				lSize = size;
 			}
-			var s = size;
-			if(start + s>truePos){
+			
+			var truePos  = lStart + localPos;
+			var trueSize = lStart + lSize;
+			
+			//End space is full but there is space at start, move to 0
+			if(lStart>0 && trueSize>=arr.length){
+				System.arraycopy(arr, lStart, arr, 0, lSize);
+				zeroRange(Math.max(lSize + 1, lStart), trueSize);
+				start = 0;
+				trueSize = lSize;
+				truePos = localPos;
+			}
+			
+			if(trueSize>truePos){
 				//System.arraycopy is for some reason slower?
-				for(int i = s - 1; i>=truePos; i--) arr[i + 1] = arr[i];
-//				System.arraycopy(
-//					arr, truePos,
-//					arr, truePos + 1,
-//					s - truePos
-//				);
+				for(int i = trueSize - 1; i>=truePos; i--) arr[i + 1] = arr[i];
+//				System.arraycopy(arr, truePos, arr, truePos + 1, trueSize - truePos);
 			}
 			arr[truePos] = element;
-			size = s + 1;
+			size = lSize + 1;
+		}
+		
+		private boolean addByNextTransfer(int localPos, T element){
+			var lNext = next;
+			if(lNext == null || lNext.full()) return false;
+			
+			var lSize     = size;
+			var nextStart = lNext.start;
+			var toMove    = lSize - localPos;
+			
+			if(nextStart<toMove) return false;
+			if(localPos == lSize){
+				lNext.add(0, element);
+				return true;
+			}
+			
+			var trueSize = start + lSize;
+			System.arraycopy(arr, trueSize - toMove, lNext.arr, nextStart - toMove, toMove);
+			arr[localPos] = element;
+			zeroRange(localPos + 1, trueSize);
+			size -= toMove - 1;
+			lNext.start -= toMove;
+			lNext.size += toMove;
+			return true;
+		}
+		
+		private boolean addByPrevTransfer(int localPos, T element){
+			var lPrev = prev;
+			if(lPrev == null) return false;
+			
+			var prevEnd = lPrev.size + lPrev.start;
+			
+			if(prevEnd + localPos>lPrev.arr.length) return false;
+			if(localPos == 0){
+				lPrev.add(lPrev.size, element);
+				return true;
+			}
+			
+			System.arraycopy(arr, 0, lPrev.arr, prevEnd, localPos);
+			var prev = localPos - 1;
+			arr[prev] = element;
+			zeroRange(0, prev);
+			size -= prev;
+			start += prev;
+			lPrev.size += localPos;
+			return true;
+		}
+		
+		private void zeroRange(int from, int to){
+			for(int i = from; i<to; i++) arr[i] = null;
 		}
 		
 		private boolean expand(int localPos){
@@ -279,15 +355,17 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			int copyPos   = 0;
 			var available = n.arr.length - (n.start + n.size);
 			
-			var amount = Math.min(s/2, Math.max(1, available - 1));
+			var amount = Math.min(s/4, Math.max(1, available - 1));
 			if(n.size>0){
 				var toMove = Math.max(0, amount - n.start);
-				System.arraycopy(n.arr, n.start, n.arr, n.start + toMove, n.size);
+				if(toMove>0){
+					System.arraycopy(n.arr, n.start, n.arr, n.start + toMove, n.size);
+				}
 				copyPos = n.start + toMove - amount;
 			}
-			
-			System.arraycopy(arr, s - amount, n.arr, copyPos, amount);
-			for(int i = s - amount; i<s; i++) arr[i] = null;
+			var trueSize = start + s;
+			System.arraycopy(arr, trueSize - amount, n.arr, copyPos, amount);
+			zeroRange(trueSize - amount, trueSize);
 			
 			n.start = copyPos;
 			n.size += amount;
@@ -297,7 +375,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 		
 		private boolean full(){
-			return size>=arr.length - arr.length/4;
+			return size>=arr.length*3/4;
 		}
 		private Node optimalNext(){
 			if(next == null || next.full()){
@@ -319,19 +397,31 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 		
 		private StructureChange<T> remove(int localPos){
-			Objects.checkIndex(localPos, size);
-			int i       = start + localPos;
-			int newSize = size - 1;
-			if(start + newSize>i){
-				System.arraycopy(arr, i + 1, arr, i, start + newSize - i);
+			var s = size;
+			Objects.checkIndex(localPos, s);
+			int newSize = s - 1;
+			if(localPos<s/2){
+				if(localPos>0){
+					System.arraycopy(arr, start, arr, start + 1, localPos);
+				}
+				arr[start] = null;
+				start++;
+				size = newSize;
+				if(newSize == 0) start = arr.length/2;
+			}else{
+				if(newSize>localPos){
+					int i = start + localPos;
+					System.arraycopy(arr, i + 1, arr, i, start + newSize - i);
+				}
+				arr[start + (size = newSize)] = null;
 			}
-			arr[size = newSize] = null;
 			
 			if(newSize<arr.length/2){
 				if(newSize == 0){
 					removeSelf();
 					if(next == null){
-						return prev == null? null : new StructureChange<>(prev, prev.size);
+						if(prev == null) return null;
+						return new StructureChange<>(prev, prev.size);
 					}
 					return new StructureChange<>(next, 0);
 				}
@@ -342,26 +432,59 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 		
 		private StructureChange<T> defrag(){
-			int siz = size;
-			if(prev != null){
+			int siz   = size;
+			var lPrev = prev;
+			var lNext = next;
+			
+			
+			if(lPrev != null){
 				int off;
-				if(siz + (off = prev.size + prev.start)<arr.length){
-					System.arraycopy(arr, start, prev.arr, off, siz);
-					var olSiz = prev.size;
-					prev.size += siz;
+				if(siz + (off = lPrev.size + lPrev.start)<=arr.length){
+					System.arraycopy(arr, start, lPrev.arr, off, siz);
+					var olSiz = lPrev.size;
+					lPrev.size += siz;
 					removeSelf();
-					return new StructureChange<>(prev, olSiz);
+					return new StructureChange<>(lPrev, olSiz);
 				}
 			}
-			if(next != null){
+			if(lNext != null){
 				int off;
-				if((off = siz + start) + next.size<arr.length){
-					System.arraycopy(next.arr, next.start, arr, off, next.size);
-					size += next.size;
-					next.removeSelf();
+				if((off = siz + start) + lNext.size<=arr.length){
+					System.arraycopy(lNext.arr, lNext.start, arr, off, lNext.size);
+					size += lNext.size;
+					lNext.removeSelf();
 					return new StructureChange<>(this, 0);
 				}
 			}
+			
+			if(lPrev != null && lNext != null){
+				var prevEnd   = lPrev.size + lPrev.start;
+				var nextStart = lNext.start;
+				
+				var prevToAdd = lPrev.arr.length - prevEnd;
+				var nextToAdd = nextStart;
+				
+				var remaining = siz - prevToAdd - nextToAdd;
+				if(remaining>0) return null;
+				if(remaining<0){
+					nextToAdd += remaining;
+				}
+				if(nextToAdd<=0) throw new IllegalStateException();
+				
+				
+				var olSiz = lPrev.size;
+				
+				System.arraycopy(arr, start, lPrev.arr, prevEnd, prevToAdd);
+				lPrev.size += prevToAdd;
+				
+				System.arraycopy(arr, start + prevToAdd, lNext.arr, nextStart - nextToAdd, nextToAdd);
+				lNext.start -= nextToAdd;
+				lNext.size += nextToAdd;
+				
+				removeSelf();
+				return new StructureChange<>(lPrev, olSiz);
+			}
+			
 			return null;
 		}
 		
@@ -371,6 +494,14 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			if(next != null) next.prev = prev;
 			else tail = prev;
 			size = -1;
+		}
+		@Override
+		public String toString(){
+			var res = new StringJoiner(", ", "{size=" + size + ", start=" + start + "}[", "]");
+			for(int i = 0; i<size; i++){
+				res.add(Objects.toString(get(i)));
+			}
+			return res.toString();
 		}
 	}
 	
@@ -493,12 +624,12 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		
 		var node = head;
 		while(node != null){
-			var part = new StringJoiner(",");
-			for(int i = 0; i<node.size; i++){
-				part.add(Objects.toString(node.get(i)));
-			}
-			rest.add(part.toString());
-//			rest.add(node.size + "");
+//			var part = new StringJoiner(", ");
+//			for(int i = 0; i<node.size; i++){
+//				part.add(Objects.toString(node.get(i)));
+//			}
+//			rest.add(part.toString());
+			rest.add((node.arr.length - node.size) + "");
 			node = node.next;
 		}
 		

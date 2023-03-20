@@ -1,6 +1,7 @@
 package com.lapissea.unrolledlist;
 
 import com.lapissea.util.LogUtil;
+import com.lapissea.util.NanoTimer;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -40,7 +41,7 @@ public class UnrolledTest{
 	}
 	
 	public static void main(String[] args){
-		new UnrolledTest().listIteratorFuzz();
+		new UnrolledTest().addRemoveContainsFuzz();
 	}
 	
 	@Test(dependsOnMethods = {"simpleRemove", "simpleContains"})
@@ -61,9 +62,10 @@ public class UnrolledTest{
 		var rand = new Random(69);
 		
 		var unrolled = new UnrolledLinkedList<Integer>();
-		
-		var list  = new CheckList<>(unrolled, new ArrayList<>());
-		var iters = 10_000_000;
+		var t        = new NanoTimer.Simple();
+		var list     = new CheckList<>(unrolled, new ArrayList<>());
+		var iters    = 10_000_000;
+		t.start();
 		for(int i = 0; i<iters; i++){
 			if(i%(iters/100) == 0) LogUtil.println(i/(double)iters);
 			
@@ -86,6 +88,7 @@ public class UnrolledTest{
 					case REMOVE_I -> list.remove(index);
 					case SET -> list.set(index, val);
 				}
+//				if(List.of(Actions.ADD, Actions.ADD_I, Actions.REMOVE_I, Actions.REMOVE).contains(action)) LogUtil.println(list.toString());
 			}catch(Throwable e){
 				Assert.fail(
 					"Fail on iteration: " + i + "\n" +
@@ -94,6 +97,8 @@ public class UnrolledTest{
 				);
 			}
 		}
+		t.end();
+		LogUtil.println(t.ms());
 	}
 	
 	List<Integer> gen(Random r){
