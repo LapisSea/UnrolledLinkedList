@@ -2,7 +2,12 @@ package com.lapissea.unrolledlist;
 
 import java.lang.reflect.Array;
 import java.util.AbstractList;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.ListIterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -12,6 +17,25 @@ import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 public final class UnrolledLinkedList<T> extends AbstractList<T>{
+	
+	private record NodeForward<T>(UnrolledLinkedList<T>.Node start) implements Iterable<UnrolledLinkedList<T>.Node>{
+		@Override
+		public Iterator<UnrolledLinkedList<T>.Node> iterator(){
+			return new Iterator<>(){
+				private UnrolledLinkedList<T>.Node node = start;
+				@Override
+				public boolean hasNext(){
+					return node != null;
+				}
+				@Override
+				public UnrolledLinkedList<T>.Node next(){
+					var n = node;
+					node = n.next;
+					return n;
+				}
+			};
+		}
+	}
 	
 	private sealed class UnrolledIterator implements Iterator<T>{
 		
@@ -26,9 +50,6 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			var res = nodeWalk(start);
 			node = res.node;
 			pos = res.localPos;
-			if(pos == 0 && node != null && node.size == 0){
-				node = null;
-			}
 		}
 		
 		@Override
@@ -254,8 +275,15 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		
 		@SuppressWarnings("unchecked")
 		private T get(int localPos){
+			Objects.checkIndex(localPos, size);
 			return (T)arr[start + localPos];
 		}
+		@SuppressWarnings("unchecked")
+		private T getLast(){
+			if(size == 0) throw new IndexOutOfBoundsException();
+			return (T)arr[start + size - 1];
+		}
+		
 		@SuppressWarnings("unchecked")
 		private T set(int localPos, T value){
 			var truePos = start + localPos;
@@ -644,15 +672,13 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	public String toString(){
 		var rest = new StringJoiner(" - ", "[", "]");
 		
-		var node = head;
-		while(node != null){
+		for(var node : new NodeForward<>(head)){
 			var part = new StringJoiner(", ");
 			for(int i = 0; i<node.size; i++){
 				part.add(Objects.toString(node.get(i)));
 			}
 			rest.add(part.toString());
 //			rest.add((node.arr.length - node.size) + "");
-			node = node.next;
 		}
 		
 		return rest.toString();
@@ -676,12 +702,10 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	}
 	
 	private int copyIntoArray(Object[] r){
-		var node = head;
 		var pos  = 0;
-		while(node != null){
+		for(var node : new NodeForward<>(head)){
 			System.arraycopy(node.arr, node.start, r, pos, node.size);
 			pos += node.size;
-			node = node.next;
 		}
 		return pos;
 	}
@@ -689,15 +713,139 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	@Override
 	public void replaceAll(UnaryOperator<T> operator){
 		Objects.requireNonNull(operator);
-		var node = head;
-		while(node != null){
+		for(var node : new NodeForward<>(head)){
 			var arr = node.arr;
 			for(int i = node.start, j = i + node.size; i<j; i++){
 				//noinspection unchecked
 				arr[i] = operator.apply((T)arr[i]);
 			}
-			node = node.next;
 		}
 	}
 	
+	
+	private static final class SortChunk<E>{
+		private final UnrolledLinkedList<E>.Node start;
+		private       E                          last;
+		private       int                        size;
+		
+		private ArrayDeque<E>              buffer;
+		private UnrolledLinkedList<E>.Node current;
+		private int                        pos, readPos;
+		
+		
+		private SortChunk(UnrolledLinkedList<E>.Node node){
+			this.start = node;
+			last = node.getLast();
+			size = node.size;
+		}
+		
+		private static <E> void merge(Comparator<? super E> c, ArrayDeque<E> buffA, ArrayDeque<E> buffB, SortChunk<E> l, SortChunk<E> r){
+			SortChunk<E> dest = new SortChunk<>(l.start);
+			var          ls   = l.size;
+			var          rs   = r.size;
+			
+			l.buffer = buffA;
+			r.buffer = buffB;
+			dest.size = ls + rs;
+			l.start();
+			r.start();
+			dest.start();
+			
+			for(int i = 0, j = dest.size; i<j; i++){
+				E       val;
+				boolean hasL = l.has(), hasR = r.has();
+				if(hasL && hasR){
+					var lv = l.next();
+					var rv = r.next();
+					if(c.compare(lv, rv)<0){
+						val = lv;
+						r.buffer.addFirst(rv);
+					}else{
+						val = rv;
+						l.buffer.addFirst(lv);
+					}
+				}else{
+					val = hasL? l.next() : r.next();
+				}
+				if(hasL && l.readPos<=dest.readPos && l.readPos<l.size) l.buffer.addLast(l.read());
+				dest.add(val);
+			}
+		}
+		
+		private E next(){
+			if(buffer.isEmpty()){
+				return read();
+			}
+			return buffer.removeFirst();
+		}
+		private E read(){
+			var pos = advance();
+			return current.get(pos);
+		}
+		private void add(E val){
+			var pos = advance();
+			current.set(pos, val);
+		}
+		private void start(){
+			current = start;
+			pos = -1;
+			readPos = 0;
+		}
+		private int advance(){
+			if(readPos == size) throw new IllegalStateException();
+			pos++;
+			if(pos == current.size){
+				current = current.next;
+				pos = 0;
+			}
+			readPos++;
+			return pos;
+		}
+		private boolean has(){
+			return !buffer.isEmpty() || readPos<size;
+		}
+	}
+	
+	@Override
+	public void sort(Comparator<? super T> c){
+		
+		List<SortChunk<T>> chunks = new LinkedList<>();
+		
+		for(var node : new NodeForward<>(head)){
+			var size = node.size;
+			if(size>1){
+				var start = node.start;
+				//noinspection unchecked
+				Arrays.sort(node.arr, start, start + size, (Comparator<? super Object>)c);
+			}
+			if(chunks.isEmpty()) chunks.add(new SortChunk<>(node));
+			else{
+				var ch   = chunks.get(chunks.size() - 1);
+				var last = ch.last;
+				var next = node.get(0);
+				if(c.compare(next, last)>=0){
+					ch.size += node.size;
+					ch.last = node.getLast();
+					continue;
+				}
+				chunks.add(new SortChunk<>(node));
+			}
+		}
+		ArrayDeque<T> buffA = new ArrayDeque<>(), buffB = new ArrayDeque<>();
+		while(chunks.size()>1){
+			var iter = chunks.iterator();
+			while(iter.hasNext()){
+				var l = iter.next();
+				if(!iter.hasNext()) break;
+				var r = iter.next();
+				iter.remove();
+				
+				SortChunk.merge(c, buffA, buffB, l, r);
+				l.size += r.size;
+				
+			}
+		}
+		
+		super.sort(c);
+	}
 }
