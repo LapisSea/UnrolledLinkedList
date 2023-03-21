@@ -7,7 +7,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.ListIterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -809,7 +808,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	@Override
 	public void sort(Comparator<? super T> c){
 		
-		List<SortChunk<T>> chunks = new LinkedList<>();
+		var chunks = new LinkedList<SortChunk<T>>();
 		
 		for(var node : new NodeForward<>(head)){
 			var size = node.size;
@@ -845,7 +844,5 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 				
 			}
 		}
-		
-		super.sort(c);
 	}
 }

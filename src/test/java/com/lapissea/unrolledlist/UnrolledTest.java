@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.IntStream;
 
 public class UnrolledTest{
 	
@@ -43,15 +44,18 @@ public class UnrolledTest{
 	
 	@Test(dependsOnMethods = "simpleAdd")
 	void sortTest(){
-		var       rand = new Random(69);
-		NanoTimer t    = new NanoTimer.Simple();
-		t.start();
-		for(int i = 0; i<10000; i++){
-			var list = gen(rand, 3);
-			list.sort(Comparator.naturalOrder());
+		var iter = 100000;
+		var l    = IntStream.range(0, iter).parallel().mapToObj(i -> gen(new Random(i*1000L), 3)).toList();
+		for(int i = 0; i<l.size(); i++){
+			if(i%(iter/100) == 0) LogUtil.println(i/(double)iter);
+			var list = l.get(i);
+			try{
+				list.sort(Comparator.naturalOrder());
+			}catch(Throwable e){
+				Assert.fail("Failed on " + i, e);
+			}
+			
 		}
-		t.end();
-		LogUtil.println(t.ms());
 	}
 	
 	public static void main(String[] args){
@@ -123,16 +127,15 @@ public class UnrolledTest{
 			max = max*10 + 9;
 		}
 		
-		var unrolled = new UnrolledLinkedList<Integer>();
-		var list     = new CheckList<>(unrolled, new ArrayList<>());
-		int size     = r.nextInt(200);
+		var list = new UnrolledLinkedList<Integer>();
+		int size = r.nextInt(200);
 		for(int i = 0; i<size; i++){
 			list.add(r.nextInt(min, max));
 			if(r.nextInt(3) == 0 && !list.isEmpty()){
 				list.remove(r.nextInt(list.size()));
 			}
 		}
-		return list;
+		return new CheckList<>(list, new ArrayList<>(list));
 	}
 	
 	@Test(dependsOnMethods = "simpleAdd")
