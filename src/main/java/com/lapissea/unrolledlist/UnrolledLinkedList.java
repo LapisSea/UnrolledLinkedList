@@ -646,12 +646,12 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		
 		var node = head;
 		while(node != null){
-//			var part = new StringJoiner(", ");
-//			for(int i = 0; i<node.size; i++){
-//				part.add(Objects.toString(node.get(i)));
-//			}
-//			rest.add(part.toString());
-			rest.add((node.arr.length - node.size) + "");
+			var part = new StringJoiner(", ");
+			for(int i = 0; i<node.size; i++){
+				part.add(Objects.toString(node.get(i)));
+			}
+			rest.add(part.toString());
+//			rest.add((node.arr.length - node.size) + "");
 			node = node.next;
 		}
 		
