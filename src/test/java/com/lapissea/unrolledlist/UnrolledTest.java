@@ -6,6 +6,7 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 
@@ -40,8 +41,21 @@ public class UnrolledTest{
 		Assert.assertFalse(list.contains(360));
 	}
 	
+	@Test(dependsOnMethods = "simpleAdd")
+	void sortTest(){
+		var       rand = new Random(69);
+		NanoTimer t    = new NanoTimer.Simple();
+		t.start();
+		for(int i = 0; i<10000; i++){
+			var list = gen(rand, 3);
+			list.sort(Comparator.naturalOrder());
+		}
+		t.end();
+		LogUtil.println(t.ms());
+	}
+	
 	public static void main(String[] args){
-		new UnrolledTest().listIteratorFuzz();
+		new UnrolledTest().sortTest();
 	}
 	
 	@Test(dependsOnMethods = {"simpleRemove", "simpleContains"})
@@ -101,12 +115,19 @@ public class UnrolledTest{
 		LogUtil.println(t.ms());
 	}
 	
-	List<Integer> gen(Random r){
+	List<Integer> gen(Random r, int digs){
+		int min = 1;
+		int max = 9;
+		for(int i = 0; i<digs - 1; i++){
+			min *= 10;
+			max = max*10 + 9;
+		}
+		
 		var unrolled = new UnrolledLinkedList<Integer>();
 		var list     = new CheckList<>(unrolled, new ArrayList<>());
 		int size     = r.nextInt(200);
 		for(int i = 0; i<size; i++){
-			list.add(r.nextInt(10, 99));
+			list.add(r.nextInt(min, max));
 			if(r.nextInt(3) == 0 && !list.isEmpty()){
 				list.remove(r.nextInt(list.size()));
 			}
@@ -122,7 +143,7 @@ public class UnrolledTest{
 		for(int i = 0; i<iters; i++){
 			if(i%(iters/100) == 0) LogUtil.println(i/(double)iters);
 			
-			var list = gen(rand);
+			var list = gen(rand, 2);
 //			LogUtil.println(i,list.toString());
 			
 			var     iter = list.iterator();
@@ -162,7 +183,7 @@ public class UnrolledTest{
 		for(int i = 0; i<iters; i++){
 			if(i%(iters/100) == 0) LogUtil.println(i/(double)iters);
 			
-			var list = gen(rand);
+			var list = gen(rand, 2);
 //			LogUtil.println(i, list.toString());
 			
 			var     iter = list.listIterator(list.isEmpty()? 0 : rand.nextInt(list.size()));

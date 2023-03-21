@@ -3,9 +3,14 @@ package com.lapissea.unrolledlist;
 import com.lapissea.util.LogUtil;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Spliterator;
+import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
 
 import static org.testng.Assert.assertEquals;
 
@@ -290,5 +295,38 @@ public class CheckList<T> implements List<T>{
 	public String toString(){
 		if(a.equals(b)) return a.toString();
 		return a + " != " + b;
+	}
+	
+	@Override
+	public void replaceAll(UnaryOperator<T> operator){
+		a.replaceAll(operator);
+		b.replaceAll(operator);
+		listEquality();
+	}
+	@Override
+	public void sort(Comparator<? super T> c){
+		a.sort(c);
+		b.sort(c);
+		listEquality();
+	}
+	@Override
+	public Spliterator<T> spliterator(){
+		return a.spliterator();
+	}
+	@Override
+	public boolean removeIf(Predicate<? super T> filter){
+		var va = a.removeIf(filter);
+		var vb = b.removeIf(filter);
+		listEquality();
+		assertEquals(va, vb);
+		return va;
+	}
+	@Override
+	public Stream<T> stream(){
+		return a.stream();
+	}
+	@Override
+	public Stream<T> parallelStream(){
+		return a.parallelStream();
 	}
 }
