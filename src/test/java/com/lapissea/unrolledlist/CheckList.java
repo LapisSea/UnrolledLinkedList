@@ -203,68 +203,78 @@ public class CheckList<T> implements List<T>{
 	
 	@Override
 	public ListIterator<T> listIterator(int index){
-		return new ListIterator<T>(){
+		return new ListIterator<>(){
 			private final ListIterator<T> iterA = a.listIterator(index);
 			private final ListIterator<T> iterB = b.listIterator(index);
+			
+			private void iterCheck(){
+				assertEquals(iterA.previousIndex(), iterB.previousIndex(), "previousIndex mismatch:");
+				assertEquals(iterA.nextIndex(), iterB.nextIndex(), "nextIndex mismatch:");
+			}
+			
 			@Override
 			public boolean hasNext(){
 				var va = iterA.hasNext();
 				var vb = iterB.hasNext();
 				assertEquals(va, vb);
+				iterCheck();
 				return va;
 			}
 			@Override
 			public T next(){
 				var va = iterA.next();
 				var vb = iterB.next();
-				assertEquals(va, vb);
+				iterCheck();
+				assertEquals(va, vb, "pos a/b: " + iterA.previousIndex() + "/" + iterB.previousIndex());
 				return va;
 			}
+			
 			@Override
 			public boolean hasPrevious(){
 				var va = iterA.hasPrevious();
 				var vb = iterB.hasPrevious();
 				assertEquals(va, vb);
+				iterCheck();
 				return va;
 			}
 			@Override
 			public T previous(){
 				var va = iterA.previous();
 				var vb = iterB.previous();
+				iterCheck();
 				assertEquals(va, vb);
 				return va;
 			}
 			@Override
 			public int nextIndex(){
-				var va = iterA.nextIndex();
-				var vb = iterB.nextIndex();
-				assertEquals(va, vb);
-				return va;
+				iterCheck();
+				return iterA.nextIndex();
 			}
 			@Override
 			public int previousIndex(){
-				var va = iterA.previousIndex();
-				var vb = iterB.previousIndex();
-				assertEquals(va, vb);
-				return va;
+				iterCheck();
+				return iterA.previousIndex();
 			}
 			@Override
 			public void remove(){
 				iterA.remove();
 				iterB.remove();
 				listEquality();
+				iterCheck();
 			}
 			@Override
 			public void set(T t){
 				iterA.set(t);
 				iterB.set(t);
 				listEquality();
+				iterCheck();
 			}
 			@Override
 			public void add(T t){
 				iterA.add(t);
 				iterB.add(t);
 				listEquality();
+				iterCheck();
 			}
 		};
 	}

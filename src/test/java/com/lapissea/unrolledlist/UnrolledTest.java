@@ -41,7 +41,7 @@ public class UnrolledTest{
 	}
 	
 	public static void main(String[] args){
-		new UnrolledTest().addRemoveContainsFuzz();
+		new UnrolledTest().listIteratorFuzz();
 	}
 	
 	@Test(dependsOnMethods = {"simpleRemove", "simpleContains"})
@@ -169,10 +169,11 @@ public class UnrolledTest{
 			boolean any  = false;
 			int     j    = 0;
 			while(j<10000){
+				Action action=null;
+				
 				try{
 					if(!iter.hasNext()) break;
 					
-					Action action;
 					do{
 						action = actions[rand.nextInt(actions.length)];
 					}while(!any && action.needsAny);
@@ -209,7 +210,7 @@ public class UnrolledTest{
 					
 					j++;
 				}catch(Throwable e){
-					Assert.fail("Fail on iteration: " + i + " inner: " + j, e);
+					Assert.fail("Action " + action + " failed on iteration: i == " + i + " && j == " + j, e);
 				}
 			}
 		}
