@@ -4,6 +4,7 @@ import java.lang.reflect.Array;
 import java.util.AbstractList;
 import java.util.Iterator;
 import java.util.ListIterator;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Spliterator;
 import java.util.StringJoiner;
@@ -18,6 +19,10 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		protected int pos, lastRet;
 		
 		public UnrolledIterator(int start){
+			toGlobalPos(start);
+		}
+		
+		protected void toGlobalPos(int start){
 			var res = nodeWalk(start);
 			node = res.node;
 			pos = res.localPos;
@@ -30,23 +35,13 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		public boolean hasNext(){
 			return node != null;
 		}
+		
 		@Override
 		public T next(){
-			checkNode(node);
 			T val = (nodeLastRet = node).get(lastRet = pos);
 			pos++;
 			fixPos();
 			return val;
-		}
-		
-		private void checkNode(Node node){
-			var n = head;
-			if(head == null) return;
-			while(n != null){
-				if(n == node) return;
-				n = n.next;
-			}
-			throw new IllegalStateException("node not in list");
 		}
 		
 		protected void fixPos(){
@@ -59,7 +54,6 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		@Override
 		public void remove(){
 			if(nodeLastRet == null) throw new IllegalStateException();
-			checkNode(nodeLastRet);
 			var res = nodeLastRet.remove(lastRet);
 			if(res != null){
 				node = res.newNode;
@@ -75,15 +69,42 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	}
 	
 	private final class UnrolledListIterator extends UnrolledIterator implements ListIterator<T>{
+		private int globalPos;
+		
 		UnrolledListIterator(int index){
 			super(index);
+			globalPos = index;
 		}
 		
 		public boolean hasPrevious(){
 			return pos>0 || (node != null && node.prev != null);
 		}
 		
+		@Override
+		public T next(){
+			if(!hasNext()) throw new NoSuchElementException();
+			globalPos++;
+			return super.next();
+		}
+		@Override
+		public void remove(){
+			if(node == nodeLastRet){
+				globalPos += lastRet - pos;
+			}else{
+				globalPos = lastRet;
+				var n = head;
+				while(n != nodeLastRet){
+					globalPos += n.size;
+					n = n.next;
+				}
+			}
+			
+			super.remove();
+		}
+		
 		public T previous(){
+			if(!hasPrevious()) throw new NoSuchElementException();
+			globalPos--;
 			int i = pos - 1;
 			if(i == -1){
 				var prev = node.prev;
@@ -94,11 +115,11 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 		
 		public int nextIndex(){
-			return pos;
+			return globalPos;
 		}
 		
 		public int previousIndex(){
-			return pos - 1;
+			return globalPos - 1;
 		}
 		
 		public void set(T e){
@@ -112,6 +133,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			size++;
 			nodeLastRet = null;
 			pos = i + 1;
+			toGlobalPos(++globalPos);
 			fixPos();
 		}
 	}
