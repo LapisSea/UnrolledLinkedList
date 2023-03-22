@@ -7,9 +7,10 @@ import org.testng.annotations.Test;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Random;
 import java.util.stream.IntStream;
+
+import static com.lapissea.unrolledlist.Utils.gen;
 
 public class UnrolledTest{
 	
@@ -45,7 +46,7 @@ public class UnrolledTest{
 	@Test(dependsOnMethods = "simpleAdd")
 	void sortTest(){
 		var iter = 100000;
-		var l    = IntStream.range(0, iter).parallel().mapToObj(i -> gen(new Random(i*1000L), 3)).toList();
+		var l    = IntStream.range(0, iter).parallel().mapToObj(i -> gen(new Random(i*1000L), 200, 3)).toList();
 		for(int i = 0; i<l.size(); i++){
 			if(i%(iter/100) == 0) LogUtil.println(i/(double)iter);
 			var list = l.get(i);
@@ -119,25 +120,6 @@ public class UnrolledTest{
 		LogUtil.println(t.ms());
 	}
 	
-	List<Integer> gen(Random r, int digs){
-		int min = 1;
-		int max = 9;
-		for(int i = 0; i<digs - 1; i++){
-			min *= 10;
-			max = max*10 + 9;
-		}
-		
-		var list = new UnrolledLinkedList<Integer>();
-		int size = r.nextInt(200);
-		for(int i = 0; i<size; i++){
-			list.add(r.nextInt(min, max));
-			if(r.nextInt(3) == 0 && !list.isEmpty()){
-				list.remove(r.nextInt(list.size()));
-			}
-		}
-		return new CheckList<>(list, new ArrayList<>(list));
-	}
-	
 	@Test(dependsOnMethods = "simpleAdd")
 	void iteratorFuzz(){
 		var rand = new Random(69);
@@ -146,7 +128,7 @@ public class UnrolledTest{
 		for(int i = 0; i<iters; i++){
 			if(i%(iters/100) == 0) LogUtil.println(i/(double)iters);
 			
-			var list = gen(rand, 2);
+			var list = gen(rand, 200, 2);
 //			LogUtil.println(i,list.toString());
 			
 			var     iter = list.iterator();
@@ -186,7 +168,7 @@ public class UnrolledTest{
 		for(int i = 0; i<iters; i++){
 			if(i%(iters/100) == 0) LogUtil.println(i/(double)iters);
 			
-			var list = gen(rand, 2);
+			var list = gen(rand, 200, 2);
 //			LogUtil.println(i, list.toString());
 			
 			var     iter = list.listIterator(list.isEmpty()? 0 : rand.nextInt(list.size()));

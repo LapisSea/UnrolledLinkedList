@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="RemoteTargetsManager">
+    <targets>
+      <target name="LapLap@192.168.0.12:22" type="ssh/sftp" uuid="a3f7a3d2-0b2a-4178-91fd-d6e4b490f636">
+        <config>
+          <option name="projectRootOnTarget" value="C:\intellij-ssh" />
+          <option name="serverName" value="LapLap@192.168.0.12:22 password" />
+        </config>
+        <ContributedStateBase type="JavaLanguageRuntime">
+          <config>
+            <option name="homePath" value="C:\Users\LapLap\.jdks\temurin-19.0.2" />
+            <option name="javaVersionString" value="19" />
+          </config>
+        </ContributedStateBase>
+      </target>
+    </targets>
+  </component>
+</project>
