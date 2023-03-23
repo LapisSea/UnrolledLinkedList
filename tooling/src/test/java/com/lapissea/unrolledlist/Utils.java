@@ -1,8 +1,15 @@
 package com.lapissea.unrolledlist;
 
+import com.lapissea.util.UtilL;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import java.util.Random;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntFunction;
 
 public class Utils{
 	
@@ -27,5 +34,32 @@ public class Utils{
 			}
 		}
 		return doTest? new CheckList<>(list, new ArrayList<>(list)) : list;
+	}
+	
+	public static <T> Queue<List<T>> asyncGen(int iters, int chunkSize, int threads, IntFunction<T> gen){
+		var queue = new ConcurrentLinkedQueue<List<T>>();
+		
+		var s = Executors.newFixedThreadPool(threads);
+		
+		Thread.ofVirtual().start(() -> {
+			AtomicInteger doneCount = new AtomicInteger();
+			for(int i = 0; i<iters; i++){
+				int outerIter = i;
+				s.submit(() -> {
+					UtilL.sleepWhile(() -> queue.size()>10);
+					List<T> list = new ArrayList<>(chunkSize);
+					for(int inneriter = 0; inneriter<chunkSize; inneriter++){
+						list.add(gen.apply(outerIter*1000 + inneriter));
+					}
+					queue.add(list);
+					
+					if(doneCount.incrementAndGet() == iters){
+						s.close();
+					}
+				});
+			}
+		});
+		
+		return queue;
 	}
 }
