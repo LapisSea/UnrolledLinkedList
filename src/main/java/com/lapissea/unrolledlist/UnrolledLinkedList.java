@@ -6,7 +6,6 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.ListIterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -552,6 +551,12 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			}
 			return res.toString();
 		}
+		public void sort(Comparator<? super T> c){
+			if(size>1){
+				//noinspection unchecked
+				Arrays.sort(arr, start, start + size, (Comparator<? super Object>)c);
+			}
+		}
 	}
 	
 	private       int size;
@@ -739,9 +744,10 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 		
 		private static <E> void merge(Comparator<? super E> c, ArrayDeque<E> buffA, ArrayDeque<E> buffB, SortChunk<E> l, SortChunk<E> r){
-			SortChunk<E> dest = new SortChunk<>(l.start);
-			var          ls   = l.size;
-			var          rs   = r.size;
+			var dest = new SortChunk<>(l.start);
+			
+			var ls = l.size;
+			var rs = r.size;
 			
 			l.buffer = buffA;
 			r.buffer = buffB;
@@ -807,42 +813,49 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	
 	@Override
 	public void sort(Comparator<? super T> c){
+		if(head == null) return;
+		if(head.next == null){
+			head.sort(c);
+			return;
+		}
 		
-		var chunks = new LinkedList<SortChunk<T>>();
+		//noinspection unchecked
+		var chunks = (SortChunk<T>[])new SortChunk[(int)(size/(double)rollSize*1.5 + 4)];
+		int cPos   = 0;
 		
 		for(var node : new NodeForward<>(head)){
-			var size = node.size;
-			if(size>1){
-				var start = node.start;
-				//noinspection unchecked
-				Arrays.sort(node.arr, start, start + size, (Comparator<? super Object>)c);
-			}
-			if(chunks.isEmpty()) chunks.add(new SortChunk<>(node));
-			else{
-				var ch   = chunks.get(chunks.size() - 1);
-				var last = ch.last;
-				var next = node.get(0);
-				if(c.compare(next, last)>=0){
+			node.sort(c);
+			if(cPos != 0){
+				var ch = chunks[cPos - 1];
+				if(c.compare(node.get(0), ch.last)>=0){
 					ch.size += node.size;
 					ch.last = node.getLast();
 					continue;
 				}
-				chunks.add(new SortChunk<>(node));
 			}
+			
+			if(chunks.length == cPos){
+				int count = 0;
+				for(var __ : new NodeForward<>(node)){
+					count++;
+				}
+				chunks = Arrays.copyOf(chunks, chunks.length + count);
+			}
+			chunks[cPos++] = new SortChunk<>(node);
 		}
-		ArrayDeque<T> buffA = new ArrayDeque<>(), buffB = new ArrayDeque<>();
-		while(chunks.size()>1){
-			var iter = chunks.iterator();
-			while(iter.hasNext()){
-				var l = iter.next();
-				if(!iter.hasNext()) break;
-				var r = iter.next();
-				iter.remove();
-				
+		
+		
+		ArrayDeque<T> buffA = new ArrayDeque<>(), buffB = new ArrayDeque<>(1);
+		
+		int       inc = 1;
+		final int s   = cPos;
+		while(inc<s){
+			for(int i = 0, step = inc*2; i + inc<s; i += step){
+				SortChunk<T> l = chunks[i], r = chunks[i + inc];
 				SortChunk.merge(c, buffA, buffB, l, r);
 				l.size += r.size;
-				
 			}
+			inc *= 2;
 		}
 	}
 }
