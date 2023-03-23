@@ -8,9 +8,9 @@ public class Utils{
 	
 	
 	public static List<Integer> gen(Random r, int maxSize, int digs){
-		return gen(r, 16, maxSize, digs);
+		return gen(r, 16, maxSize, digs, true);
 	}
-	public static List<Integer> gen(Random r, int chunkSize, int maxSize, int digs){
+	public static List<Integer> gen(Random r, int chunkSize, int maxSize, int digs, boolean doTest){
 		int min = 1;
 		int max = 9;
 		for(int i = 0; i<digs - 1; i++){
@@ -26,6 +26,6 @@ public class Utils{
 				list.remove(r.nextInt(list.size()));
 			}
 		}
-		return new CheckList<>(list, new ArrayList<>(list));
+		return doTest? new CheckList<>(list, new ArrayList<>(list)) : list;
 	}
 }

@@ -32,12 +32,13 @@ public class CheckList<T> implements List<T>{
 			if(!a.equals(b)){
 				assertEquals(a.size(), b.size(), "Lists are not of equal length");
 				
-				List<String> lines = new ArrayList<>();
+				List<String> lines = new ArrayList<>(16);
+				lines.add("");
 				lines.add(b.stream().map(Objects::toString).collect(Collectors.joining(", ", "Expected list: [", "]")));
 				lines.add(a.stream().map(Objects::toString).collect(Collectors.joining(", ", "Actual list:   [", "]")));
 				
 				var ai = a.iterator();
-				var bi = a.iterator();
+				var bi = b.iterator();
 				int i  = 0;
 				while(ai.hasNext()){
 					i++;
@@ -45,7 +46,7 @@ public class CheckList<T> implements List<T>{
 					var bv = bi.next();
 					if(Objects.equals(av, bv)) continue;
 					
-					lines.add("\tExpected \"" + bv + "\" at " + (i - 1) + " but got \"" + av + "\"");
+					lines.add("\tExpected {" + bv + "} at " + (i - 1) + " but got {" + av + "}");
 					if(lines.size()>=15 && ai.hasNext()){
 						lines.add("\tAnd possibly more...");
 						break;

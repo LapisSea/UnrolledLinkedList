@@ -24,6 +24,16 @@ import java.util.concurrent.TimeUnit;
 //@BenchmarkMode(Mode.AverageTime)
 public class UnrollJMH{
 	
+	public static void main(String[] args){
+		for(int i = 0; i<100000000; i++){
+			var inst = new UnrollJMH();
+			inst.chunkSize = 16;
+			inst.size = 300;
+			inst.setUp();
+			inst.sort();
+		}
+	}
+	
 	@Param({"20", "200", "300", "500"})
 	public int size;
 	@Param({"-1", "16", "32"})
@@ -33,7 +43,7 @@ public class UnrollJMH{
 	
 	@Setup(Level.Invocation)
 	public void setUp(){
-		list = Utils.gen(new Random(69), chunkSize == -1? 16 : chunkSize, size, 3);
+		list = Utils.gen(new Random(69), chunkSize == -1? 16 : chunkSize, size, 3, false);
 		if(chunkSize == -1) list = new ArrayList<>(list);
 	}
 	
