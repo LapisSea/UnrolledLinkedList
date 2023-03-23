@@ -727,92 +727,92 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 	}
 	
 	
-	private static final class SortChunk<E>{
-		private final UnrolledLinkedList<E>.Node start;
-		private       E                          last;
-		private       int                        size;
-		
-		private ArrayDeque<E>              buffer;
-		private UnrolledLinkedList<E>.Node current;
-		private int                        pos, readPos;
-		
-		
-		private SortChunk(UnrolledLinkedList<E>.Node node){
-			this.start = node;
-			last = node.getLast();
-			size = node.size;
-		}
-		
-		private static <E> void merge(Comparator<? super E> c, ArrayDeque<E> buffA, ArrayDeque<E> buffB, SortChunk<E> l, SortChunk<E> r){
-			var dest = new SortChunk<>(l.start);
-			
-			var ls = l.size;
-			var rs = r.size;
-			
-			l.buffer = buffA;
-			r.buffer = buffB;
-			dest.size = ls + rs;
-			l.start();
-			r.start();
-			dest.start();
-			
-			for(int i = 0, j = dest.size; i<j; i++){
-				E       val;
-				boolean hasL = l.has(), hasR = r.has();
-				if(hasL && hasR){
-					var lv = l.next();
-					var rv = r.next();
-					if(c.compare(lv, rv)<0){
-						val = lv;
-						r.buffer.addFirst(rv);
-					}else{
-						val = rv;
-						l.buffer.addFirst(lv);
-					}
-				}else{
-					val = hasL? l.next() : r.next();
-				}
-				if(hasL && l.readPos<=dest.readPos && l.readPos<l.size) l.buffer.addLast(l.read());
-				dest.add(val);
-			}
-		}
-		
-		private E next(){
-			if(buffer.isEmpty()){
-				return read();
-			}
-			return buffer.removeFirst();
-		}
-		private E read(){
-			var pos = advance();
-			return current.get(pos);
-		}
-		private void add(E val){
-			var pos = advance();
-			current.set(pos, val);
-		}
-		private void start(){
-			current = start;
-			pos = -1;
-			readPos = 0;
-		}
-		private int advance(){
-			if(readPos == size) throw new IllegalStateException();
-			pos++;
-			if(pos == current.size){
-				current = current.next;
-				pos = 0;
-			}
-			readPos++;
-			return pos;
-		}
-		private boolean has(){
-			return !buffer.isEmpty() || readPos<size;
-		}
-	}
-	
 	@Override
 	public void sort(Comparator<? super T> c){
+		final class SortChunk<E>{
+			private final UnrolledLinkedList<E>.Node start;
+			private       E                          last;
+			private       int                        size;
+			
+			private ArrayDeque<E>              buffer;
+			private UnrolledLinkedList<E>.Node current;
+			private int                        pos, readPos;
+			
+			
+			private SortChunk(UnrolledLinkedList<E>.Node node){
+				this.start = node;
+				last = node.getLast();
+				size = node.size;
+			}
+			
+			private static <E> void merge(Comparator<? super E> c, ArrayDeque<E> buffA, ArrayDeque<E> buffB, SortChunk<E> dest, SortChunk<E> l, SortChunk<E> r){
+				var ls = l.size;
+				var rs = r.size;
+				dest.size = ls + rs;
+				
+				l.buffer = buffA;
+				r.buffer = buffB;
+				
+				l.start();
+				r.start();
+				dest.start();
+				
+				for(int i = 0, j = dest.size; i<j; i++){
+					E       val;
+					boolean hasL = l.has(), hasR = r.has();
+					if(hasL && hasR){
+						var lv = l.next();
+						var rv = r.next();
+						if(c.compare(lv, rv)<0){
+							val = lv;
+							r.buffer.addFirst(rv);
+						}else{
+							val = rv;
+							l.buffer.addFirst(lv);
+						}
+					}else{
+						val = hasL? l.next() : r.next();
+					}
+					if(hasL && l.readPos<=dest.readPos && l.readPos<l.size) l.buffer.addLast(l.read());
+					dest.add(val);
+				}
+			}
+			
+			private E next(){
+				if(buffer.isEmpty()){
+					return read();
+				}
+				return buffer.removeFirst();
+			}
+			private E read(){
+				var pos = advance();
+				return current.get(pos);
+			}
+			private void add(E val){
+				var pos = advance();
+				current.set(pos, val);
+			}
+			private void start(){
+				current = start;
+				pos = -1;
+				readPos = 0;
+			}
+			private int advance(){
+				if(readPos == size) throw new IllegalStateException();
+				pos++;
+				if(pos == current.size){
+					current = current.next;
+					pos = 0;
+				}
+				readPos++;
+				return pos;
+			}
+			private boolean has(){
+				return !buffer.isEmpty() || readPos<size;
+			}
+		}
+		
+		
 		if(head == null) return;
 		if(head.next == null){
 			head.sort(c);
@@ -852,7 +852,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		while(inc<s){
 			for(int i = 0, step = inc*2; i + inc<s; i += step){
 				SortChunk<T> l = chunks[i], r = chunks[i + inc];
-				SortChunk.merge(c, buffA, buffB, l, r);
+				SortChunk.merge(c, buffA, buffB, new SortChunk<>(l.start), l, r);
 				l.size += r.size;
 			}
 			inc *= 2;
