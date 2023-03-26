@@ -670,29 +670,6 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 		return walkForwards(offset, head, 0);
 	}
-	private NodeResult<T> getForwardsNode(int offset){
-		var node      = head;
-		var remaining = offset;
-		while(remaining>=node.size){
-			var next = node.next;
-			if(next == null) break;
-			remaining -= node.size;
-			node = next;
-		}
-		return new NodeResult<>(node, remaining);
-	}
-	
-	private NodeResult<T> getBackwardsNode(int offset){
-		var node      = tail;
-		var remaining = size - offset;
-		while(remaining>node.size){
-			var prev = node.prev;
-			if(prev == null) break;
-			remaining -= node.size;
-			node = prev;
-		}
-		return new NodeResult<>(node, node.size - remaining);
-	}
 	
 	private NodeResult<T> walkForwards(int offset, Node start, int startPos){
 		Node node      = start;
@@ -888,7 +865,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			
 			if(chunks.length == cPos){
 				int count = 0;
-				for(var __ : new NodeForward<>(node)){
+				for(var ignored : new NodeForward<>(node)){
 					count++;
 				}
 				chunks = Arrays.copyOf(chunks, chunks.length + count);
