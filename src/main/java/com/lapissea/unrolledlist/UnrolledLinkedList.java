@@ -87,7 +87,7 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		}
 	}
 	
-	private final class UnrolledListIterator extends UnrolledIterator implements ListIterator<T>{
+	public final class UnrolledListIterator extends UnrolledIterator implements ListIterator<T>{
 		private int globalPos;
 		
 		UnrolledListIterator(int index){
@@ -154,6 +154,36 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			pos = i + 1;
 			toGlobalPos(++globalPos);
 			fixPos();
+		}
+		
+		public void moveTo(int gPos){
+			if(globalPos == gPos) return;
+			var nodePos = globalPos - pos;
+			
+			NodeResult<T> res;
+			if(gPos - globalPos<0){
+				var dist = nodePos - gPos;
+				if(dist>gPos){
+					res = walkForwards(gPos, head, 0);
+				}else{
+					res = walkBackwards(gPos, node, nodePos + node.size);
+				}
+			}else{
+				var dist    = gPos - nodePos;
+				var endDist = size - gPos;
+				if(dist>endDist){
+					res = walkBackwards(gPos, tail, size);
+				}else{
+					res = walkForwards(gPos, node, nodePos);
+				}
+			}
+			
+			node = res.node;
+			pos = res.localPos;
+			globalPos = gPos;
+		}
+		private T get(){
+			return node.get(pos);
 		}
 	}
 	
@@ -636,11 +666,10 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			return (NodeResult<T>)NodeResult.EMPTY;
 		}
 		if(offset>size>>1){
-			return getBackwardsNode(offset);
+			return walkBackwards(offset, tail, size);
 		}
-		return getForwardsNode(offset);
+		return walkForwards(offset, head, 0);
 	}
-	
 	private NodeResult<T> getForwardsNode(int offset){
 		var node      = head;
 		var remaining = offset;
@@ -665,10 +694,34 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 		return new NodeResult<>(node, node.size - remaining);
 	}
 	
+	private NodeResult<T> walkForwards(int offset, Node start, int startPos){
+		Node node      = start;
+		int  remaining = offset - startPos;
+		while(remaining>=node.size){
+			var next = node.next;
+			if(next == null) break;
+			remaining -= node.size;
+			node = next;
+		}
+		return new NodeResult<>(node, remaining);
+	}
+	
+	private NodeResult<T> walkBackwards(int offset, Node start, int startPos){
+		Node node      = start;
+		int  remaining = startPos - offset;
+		while(remaining>node.size){
+			var prev = node.prev;
+			if(prev == null) break;
+			remaining -= node.size;
+			node = prev;
+		}
+		return new NodeResult<>(node, node.size - remaining);
+	}
+	
 	@Override
 	public Iterator<T> iterator(){ return new UnrolledIterator(0); }
 	@Override
-	public ListIterator<T> listIterator(int index){ return new UnrolledListIterator(index); }
+	public UnrolledListIterator listIterator(int index){ return new UnrolledListIterator(index); }
 	@Override
 	public Spliterator<T> spliterator(){ return new UnrolledSpliterator<>(this); }
 	
@@ -725,7 +778,6 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			}
 		}
 	}
-	
 	
 	@Override
 	public void sort(Comparator<? super T> c){
@@ -857,5 +909,47 @@ public final class UnrolledLinkedList<T> extends AbstractList<T>{
 			}
 			inc *= 2;
 		}
+	}
+	
+	public int addRemainSorted(Comparator<? super T> c, T value){
+		if(isEmpty()){
+			add(value);
+			return 0;
+		}
+		
+		if(c.compare(value, head.get(0))<0){
+			add(0, value);
+			return 0;
+		}
+		if(c.compare(value, tail.getLast())>0){
+			add(value);
+			return size();
+		}
+		
+		int lo = 0;
+		int hi = size() - 1;
+		
+		var iter = new UnrolledListIterator(0);
+		
+		while(lo<=hi){
+			int mid = (hi + lo)/2;
+			
+			iter.moveTo(mid);
+			int comp = c.compare(value, iter.get());
+			if(comp<0){
+				hi = mid - 1;
+			}else if(comp>0){
+				lo = mid + 1;
+			}else{
+				iter.node.add(iter.pos, value);
+				size++;
+				return mid;
+			}
+		}
+		
+		iter.moveTo(lo);
+		iter.node.add(iter.pos, value);
+		size++;
+		return lo;
 	}
 }
