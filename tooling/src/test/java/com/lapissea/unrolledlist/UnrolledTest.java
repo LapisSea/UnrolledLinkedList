@@ -43,7 +43,7 @@ public class UnrolledTest{
 		Assert.assertFalse(list.contains(360));
 	}
 	
-	@Test(dependsOnMethods = "simpleAdd")
+	@Test(dependsOnMethods = {"simpleAdd", "addRemoveContainsFuzz"})
 	void sortTest(){
 		var iter = 100000;
 		var l    = IntStream.range(0, iter).parallel().mapToObj(i -> gen(new Random(i*1000L), 200, 3)).toList();
@@ -60,7 +60,7 @@ public class UnrolledTest{
 	}
 	
 	public static void main(String[] args){
-		new UnrolledTest().sortTest();
+		new UnrolledTest().listIteratorFuzz();
 	}
 	
 	@Test(dependsOnMethods = {"simpleRemove", "simpleContains"})
@@ -120,7 +120,7 @@ public class UnrolledTest{
 		LogUtil.println(t.ms());
 	}
 	
-	@Test(dependsOnMethods = "simpleAdd")
+	@Test(dependsOnMethods = {"simpleAdd", "addRemoveContainsFuzz"})
 	void iteratorFuzz(){
 		var rand = new Random(69);
 		
@@ -152,7 +152,35 @@ public class UnrolledTest{
 		}
 	}
 	
-	@Test(dependsOnMethods = "simpleAdd")
+	@Test(dependsOnMethods = {"sortTest", "listIteratorFuzz"})
+	void addRemainSortTest(){
+		var rand = new Random(69);
+		
+		var iters = 1000_000;
+		for(int i = 0; i<iters; i++){
+			if(i%(iters/100) == 0) LogUtil.println(i/(double)iters);
+			
+			var list = (UnrolledLinkedList<Integer>)gen(rand, 16, 120, 3, false);
+			list.sort(Integer::compare);
+			
+			try{
+				var val = rand.nextInt(100, 999);
+				
+				var arr = new ArrayList<>(list);
+				arr.add(val);
+				arr.sort(Integer::compare);
+				
+				list.addRemainSorted(Integer::compareTo, val);
+				
+				new CheckList<>(list, arr);
+			}catch(Throwable e){
+				Assert.fail("Fail on iteration: " + i, e);
+			}
+		}
+	}
+	
+	
+	@Test(dependsOnMethods = {"simpleAdd", "addRemoveContainsFuzz"})
 	void listIteratorFuzz(){
 		enum Action{
 			NEXT(false), PREV(false), SET(true), ADD(true), REMOVE(true);
@@ -183,11 +211,6 @@ public class UnrolledTest{
 					do{
 						action = actions[rand.nextInt(actions.length)];
 					}while(!any && action.needsAny);
-					
-//					if(i == 4585 && j == 46){
-//						int aai = 0;
-//					}
-//					if(i == 4585)	LogUtil.println(j, list.toString());
 					
 					switch(action){
 						case null -> throw new NullPointerException();

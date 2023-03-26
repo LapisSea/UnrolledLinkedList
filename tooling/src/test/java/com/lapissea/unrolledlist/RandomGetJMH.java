@@ -27,6 +27,18 @@ import java.util.concurrent.TimeUnit;
 //@BenchmarkMode(Mode.AverageTime)
 public class RandomGetJMH{
 	
+	public static void main(String[] args){
+		//jit logging stuff
+		var b = new Blackhole("Today's password is swordfish. I understand instantiating Blackholes directly is dangerous.");
+		for(int i = 0; i<10000000; i++){
+			var inst = new RandomGetJMH();
+			inst._type = "Unrolled 32";
+			inst.size = 200;
+			inst.setUp();
+			inst.get(b);
+		}
+	}
+	
 	@Param({"Linked", "Array", "Unrolled 16", "Unrolled 32"})
 	public String _type;
 	@Param({"20", "100", "300", "500"})

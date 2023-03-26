@@ -1,7 +1,5 @@
 package com.lapissea.unrolledlist;
 
-import com.lapissea.util.LogUtil;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -28,37 +26,30 @@ public class CheckList<T> implements List<T>{
 	}
 	
 	private void listEquality(){
-		try{
-			if(!a.equals(b)){
-				assertEquals(a.size(), b.size(), "Lists are not of equal length");
+		assertEquals(a.size(), b.size(), "Lists are not of equal length");
+		if(!a.equals(b)){
+			List<String> lines = new ArrayList<>(16);
+			lines.add("");
+			lines.add(b.stream().map(Objects::toString).collect(Collectors.joining(", ", "Expected list: [", "]")));
+			lines.add(a.stream().map(Objects::toString).collect(Collectors.joining(", ", "Actual list:   [", "]")));
+			
+			var ai = a.iterator();
+			var bi = b.iterator();
+			int i  = 0;
+			while(ai.hasNext()){
+				i++;
+				var av = ai.next();
+				var bv = bi.next();
+				if(Objects.equals(av, bv)) continue;
 				
-				List<String> lines = new ArrayList<>(16);
-				lines.add("");
-				lines.add(b.stream().map(Objects::toString).collect(Collectors.joining(", ", "Expected list: [", "]")));
-				lines.add(a.stream().map(Objects::toString).collect(Collectors.joining(", ", "Actual list:   [", "]")));
-				
-				var ai = a.iterator();
-				var bi = b.iterator();
-				int i  = 0;
-				while(ai.hasNext()){
-					i++;
-					var av = ai.next();
-					var bv = bi.next();
-					if(Objects.equals(av, bv)) continue;
-					
-					lines.add("\tExpected {" + bv + "} at " + (i - 1) + " but got {" + av + "}");
-					if(lines.size()>=15 && ai.hasNext()){
-						lines.add("\tAnd possibly more...");
-						break;
-					}
+				lines.add("\tExpected {" + bv + "} at " + (i - 1) + " but got {" + av + "}");
+				if(lines.size()>=15 && ai.hasNext()){
+					lines.add("\tAnd possibly more...");
+					break;
 				}
-				
-				fail(String.join("\n", lines));
 			}
-		}catch(Throwable e){
-			LogUtil.println(a);
-			LogUtil.println(b);
-			throw e;
+			
+			fail(String.join("\n", lines));
 		}
 	}
 	
